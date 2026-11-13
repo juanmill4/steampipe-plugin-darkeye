@@ -1,47 +1,80 @@
-# DarkEye plugin for Steampipe
+# DarkEye Plugin for Steampipe
 
-Query domain exposure metadata from [DarkEye](https://darkeye.io) with SQL. One plugin covers [Have I Been Ransomed?](https://haveibeenransom.com/) and [Breach House](https://breach.house/), with a separate optional API key for each product. Configure at least one key.
+Use SQL to query ransomware, breach, lead and stealer listings for a domain from [DarkEye](https://darkeye.io)'s [Have I Been Ransomed?](https://haveibeenransom.com/) and [Breach House](https://breach.house/).
 
-The `darkeye_domain` table returns one report per domain. Each record identifies its product and category. The report includes errors and truncation status, even when no records are returned. Listings are research leads, not proof of a confirmed incident; an empty report does not establish that a domain is safe.
+- **[Get started →](docs/index.md)**
+- Documentation: [Table definitions & examples](docs/tables)
 
-## Build and install locally
+## Quick start
 
-Requires Go 1.26 or later and Steampipe. This repository provides a source build; it is not yet distributed through the Steampipe Hub.
+Install the plugin with [Steampipe](https://steampipe.io):
+
+```shell
+steampipe plugin install juanmill4/darkeye
+```
+
+Configure your API keys in `~/.steampipe/config/darkeye.spc`, or set `HIBR_API_KEY` and `BREACHHOUSE_API_KEY`. Each table only needs the key of its product; see [docs/index.md](docs/index.md) for where to get each key and the plan requirements.
+
+Run a query:
+
+```sql
+select
+  category,
+  title,
+  group_name,
+  discovered
+from
+  darkeye_haveibeenransom_record
+where
+  domain = 'example.com';
+```
+
+Listings are claims indexed from public sources. They are starting points for investigation and do not confirm an incident; an empty result does not show that a domain is safe.
+
+## Tables
+
+| Table | Product | Key |
+| --- | --- | --- |
+| [darkeye_haveibeenransom_record](docs/tables/darkeye_haveibeenransom_record.md) | Have I Been Ransomed? | `haveibeenransom_api_key` / `HIBR_API_KEY` |
+| [darkeye_breachhouse_record](docs/tables/darkeye_breachhouse_record.md) | Breach House | `breachhouse_api_key` / `BREACHHOUSE_API_KEY` |
+
+Both tables return one row per record and require a `domain` equality condition.
+
+## Developing
+
+Prerequisites:
+
+- [Steampipe](https://steampipe.io/downloads)
+- [Golang](https://golang.org/doc/install)
+
+Clone:
 
 ```sh
 git clone https://github.com/juanmill4/steampipe-plugin-darkeye.git
 cd steampipe-plugin-darkeye
-make test
+```
+
+Build, which automatically installs the new version to your `~/.steampipe/plugins` directory:
+
+```sh
 make install
-mkdir -p ~/.steampipe/config
-cp config/darkeye.spc ~/.steampipe/config/darkeye.spc
 ```
 
-Set `HIBR_API_KEY`, `BREACHHOUSE_API_KEY`, or both in the environment used to start Steampipe. Alternatively, add `haveibeenransom_api_key` or `breachhouse_api_key` to the connection configuration. A configured value overrides its environment variable; an empty value disables that product. Keep keys out of version control. API access depends on your account with each product; this plugin does not provide credentials.
+Configure the plugin:
 
-Restart an existing Steampipe service after installing the plugin or changing its environment.
-
-```sql
-select domain, provider, records, errors, truncated, complete
-from darkeye_domain
-where domain = 'example.com';
+```sh
+cp config/* ~/.steampipe/config
+vi ~/.steampipe/config/darkeye.spc
 ```
 
-## Query behavior
+Try it!
 
-- A domain equality filter is required. Wildcards, URLs, email addresses and IP addresses are rejected. Internationalized domain names are converted to ASCII.
-- Have I Been Ransomed? uses `/api/metadata/domain/{domain}` and follows `has_next`, including empty intermediate pages. `max_pages` defaults to 5 and accepts 1–50. Each page makes one API request.
-- Breach House uses `/api/v1/search` once, with `q` and `limit`. `limit` defaults to 25 and accepts 1–200 per category. Results are retained only when their website hostname or a hostname in their title matches the queried domain or a subdomain. This filter can omit relevant listings that do not identify the domain in those fields.
-- These limits are plugin settings, not guarantees about product quotas. `truncated` flags a page cap, a reported total larger than the returned set, or a category reaching its limit without a total.
-- Configured products are queried independently. Successful records and earlier pages remain available if another request fails. Check `errors` and `truncated`; `complete` is true only when configured requests finish without known truncation.
-- Output is limited to listing metadata: product, category, ID, title, website, group, country and discovery date. The plugin does not request leaked records or download files. HTTP redirects are refused. Each request has a 30-second timeout and a 4 MiB response limit; errors omit response bodies and credentials.
-- Querying sends the supplied domain to the configured products. Steampipe may cache query results according to its configuration. Use domains you are authorized to investigate.
+```shell
+steampipe query
+> .inspect darkeye
+```
 
-See [table documentation](docs/tables/darkeye_domain.md) for examples and fields.
-
-## Development
-
-`make test` runs HTTP fixture tests and Go vet without credentials or external API calls. The fixtures cover pagination, optional keys, partial failures, malformed responses, domain matching, redirects, response limits and cancellation. These tests do not verify the providers' live availability, account permissions or quotas.
+`make test` runs the offline tests (HTTP fixtures, no credentials or live API calls) and `go vet`.
 
 ## License
 

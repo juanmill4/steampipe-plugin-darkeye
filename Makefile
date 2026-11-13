@@ -1,15 +1,11 @@
-GO ?= go
-STEAMPIPE_INSTALL_DIR ?= $(HOME)/.steampipe
+STEAMPIPE_INSTALL_DIR ?= ~/.steampipe
+BUILD_TAGS = netgo
 
-.PHONY: build install test
-
-build:
-	$(GO) build -trimpath -o build/darkeye.plugin .
-
-install: build
-	install -d $(STEAMPIPE_INSTALL_DIR)/plugins/local/darkeye
-	install -m 755 build/darkeye.plugin $(STEAMPIPE_INSTALL_DIR)/plugins/local/darkeye/darkeye.plugin
+install:
+	go build -o $(STEAMPIPE_INSTALL_DIR)/plugins/hub.steampipe.io/plugins/juanmill4/darkeye@latest/steampipe-plugin-darkeye.plugin -tags "${BUILD_TAGS}" *.go
 
 test:
-	$(GO) test ./...
-	$(GO) vet ./...
+	go test ./...
+	go vet ./...
+
+.PHONY: install test
